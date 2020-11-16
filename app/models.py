@@ -1,12 +1,5 @@
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
+from app import db
 import datetime
-
-app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = "mysql+pymysql://root:password@127.0.0.1/movie"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = True
-# 定义db对象，实例化SQLAlchemy，传入app对象
-db = SQLAlchemy(app)
 
 
 # 定义会员模型
@@ -152,6 +145,11 @@ class Admin(db.Model):
 
     def __repr__(self):
         return "<Admin %r>" % self.name
+
+    def check_pwd(self, pwd):
+        """验证密码是否正确，直接将hash密码和输入的密码进行比较，如果相同则返回True"""
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.pwd, pwd)
 
 
 # 管理员日志
