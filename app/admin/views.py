@@ -4,10 +4,10 @@ import uuid
 
 from werkzeug.utils import secure_filename
 from . import admin
-from flask import render_template, redirect, url_for, flash, session, request
+from flask import render_template, redirect, url_for, flash, session, request, abort
 from app import db, app
-from app.admin.forms import LoginForm, TagForm, MovieForm, PreviewForm
-from app.models import Admin, Tag, Movie, Preview
+from app.admin.forms import LoginForm, TagForm, MovieForm, PreviewForm, PwdForm, AuthForm, RoleForm, AdminForm
+from app.models import Admin, Tag, Movie, Preview, User, Comment, MovieCollect, Auth, Role
 from functools import wraps
 
 
@@ -18,16 +18,41 @@ def change_filename(filename):
     return filename
 
 
-# def admin_login_require(func):
-#     @wraps(func)
-#     def decorated_function(*args, **kwargs):
-#         if session.get('login_admin', None) is None:
-#             # if "admin" not in session:
-#             # 如果session中未找到该键，则用户需要登录
-#             return redirect(url_for('admin.login', next=request.url))
-#         return func(*args, **kwargs)
-#
-#     return decorated_function()
+def admin_login_require(func):
+    @wraps(func)
+    def decorated_function(*args, **kwargs):
+        if session.get('login_admin', None) is None:
+            # if "admin" not in session:
+            # 如果session中未找到该键，则用户需要登录
+            return redirect(url_for('admin.login', next=request.url))
+        return func(*args, **kwargs)
+    return decorated_function
+
+
+# 权限控制装饰器
+def permission_control(func):
+    @wraps(func)
+    def decorated_function(*args, **kwargs):
+        login_admin = Admin.query.join(
+            Role
+        ).filter(
+            Role.id == Admin.role_id,
+            Admin.name == session['login_admin']
+        ).first()
+
+        all_auth = Auth.query.all()  # 数据库所有权限
+
+        auths = login_admin.role.auths
+        auths = list(map(lambda item: int(item), auths.split(',')))  # 用户权限id列表
+        urls = [auth.url for auth in all_auth for admin_auth_id in auths if admin_auth_id == auth.id]
+
+        print(urls)
+        rule = request.url_rule
+        print(rule)  # 需要转为str判断是否在list中
+        if str(rule) not in urls and login_admin.is_super != 0:  # 权限不存在，且不是超级管理员
+            abort(401)  # abort引用不一定正确
+        return func(*args, **kwargs)
+    return decorated_function
 
 
 @admin.route("/login/", methods=['GET', 'POST'])
@@ -49,26 +74,37 @@ def login():
 
 
 @admin.route("/logout/")
-# @admin_login_require
+@admin_login_require
 def logout():
     session.pop('login_admin', None)  # 删除session中的登录账号
     return redirect(url_for("admin.login"))
 
 
 @admin.route("/")
-# @admin_login_require
+@admin_login_require
+@permission_control
 def index():
     return render_template('admin/index.html')
 
 
-@admin.route("/pwd/")
-# @admin_login_require
+@admin.route("/pwd/", methods=['GET', 'POST'])
+@admin_login_require
 def pwd():
-    return render_template('admin/pwd.html')
+    form = PwdForm()
+    if form.validate_on_submit():
+        data = form.data
+        login_name = session['login_admin']
+        admin = Admin.query.filter_by(name=login_name).first()
+        from werkzeug.security import generate_password_hash
+        admin.pwd = generate_password_hash(data['new_pwd'])
+        db.session.commit()  # 提交新密码保存，然后跳转到登录界面
+        flash('密码修改成功，请重新登录！', category='ok')
+        return redirect(url_for('admin.logout'))
+    return render_template('admin/pwd.html', form=form)
 
 
 @admin.route("/tag/add/", methods=['GET', 'POST'])
-# @admin_login_require
+@admin_login_require
 def tag_add():
     form = TagForm()
     if form.validate_on_submit():
@@ -90,7 +126,7 @@ def tag_add():
 
 
 @admin.route("/tag/list/<int:page>/", methods=['GET'])
-# @admin_login_require
+@admin_login_require
 def tag_list(page=None):
     if page is None:
         page = 1
@@ -100,7 +136,7 @@ def tag_list(page=None):
 
 
 @admin.route("/tag/delete/<int:delete_id>/", methods=['GET'])
-# @admin_login_require
+@admin_login_require
 def tag_delete(delete_id=None):
     if delete_id:
         tag = Tag.query.filter_by(id=delete_id).first_or_404()
@@ -112,7 +148,7 @@ def tag_delete(delete_id=None):
 
 
 @admin.route("/tag/update/<int:update_id>/", methods=['GET', 'POST'])
-# @admin_login_require
+@admin_login_require
 def tag_update(update_id=None):
     form = TagForm()
     tag = Tag.query.get_or_404(update_id)  # 首先查询到该标签，用主键查询，如果不存在，则返回404
@@ -132,7 +168,7 @@ def tag_update(update_id=None):
 
 
 @admin.route("/movie/add/", methods=['GET', 'POST'])
-# @admin_login_require
+@admin_login_require
 def movie_add():
     form = MovieForm()
     if form.validate_on_submit():
@@ -179,7 +215,7 @@ def movie_add():
 
 
 @admin.route("movie/list/<int:page>/", methods=['GET'])
-# @admin_login_require
+@admin_login_require
 def movie_list(page=None):
     if page is None:
         page = 1
@@ -194,7 +230,7 @@ def movie_list(page=None):
 
 
 @admin.route("/movie/delete/<int:delete_id>/", methods=['GET'])
-# @admin_login_require
+@admin_login_require
 def movie_delete(delete_id=None):
     if delete_id:
         movie = Movie.query.filter_by(id=delete_id).first_or_404()
@@ -216,7 +252,7 @@ def movie_delete(delete_id=None):
 
 
 @admin.route("/movie/update/<int:update_id>/", methods=['GET', 'POST'])
-# @admin_login_require
+@admin_login_require
 def movie_update(update_id=None):
     movie = Movie.query.get_or_404(int(update_id))
 
@@ -295,7 +331,7 @@ def movie_update(update_id=None):
 
 
 @admin.route("/preview/add/", methods=['GET', 'POST'])
-# @admin_login_require
+@admin_login_require
 def preview_add():
     form = PreviewForm()
     if form.validate_on_submit():
@@ -324,86 +360,326 @@ def preview_add():
     return render_template('admin/preview_edit.html', form=form)
 
 
-@admin.route("/preview/list/<int:page>")
-# @admin_login_require
+@admin.route("/preview/list/<int:page>/")
+@admin_login_require
 def preview_list(page=None):
     page_previews = Preview.query.paginate(page=page, per_page=10)
     return render_template('admin/preview_list.html', page_previews=page_previews)
 
 
-@admin.route("/user/list/")
-# @admin_login_require
-def user_list():
-    return render_template('admin/user_list.html')
+@admin.route("/preview/delete/<int:delete_id>/", methods=['GET'])
+@admin_login_require
+def preview_delete(delete_id=None):
+    if delete_id:
+        preview = Preview.query.filter_by(id=delete_id).first_or_404()
+        # 删除同时要从磁盘中删除封面文件
+        file_save_path = app.config['UP_DIR']  # 文件上传保存路径
+        # 如果存在将进行删除，不判断，如果文件不存在删除会报错
+        if os.path.exists(os.path.join(file_save_path, preview.logo)):
+            os.remove(os.path.join(file_save_path, preview.logo))
+
+        # 删除数据库，提交修改，注意后面要把与电影有关的评论都要删除
+        db.session.delete(preview)
+        db.session.commit()
+        # 删除后闪现消息
+        flash('删除预告成功！', category='ok')
+    return redirect(url_for('admin.preview_list', page=1))
 
 
-@admin.route("/user/view/")
-# @admin_login_require
-def user_view():
-    return render_template('admin/user_view.html')
+@admin.route("/preview/update/<int:update_id>/", methods=['GET', 'POST'])
+@admin_login_require
+def preview_update(update_id=None):
+    preview = Preview.query.get_or_404(update_id)
+    form = PreviewForm(
+        title=preview.title,
+    )
+    # 不验证上传文件
+    form.logo.validators = []
+    form.logo.render_kw = {'required': False}
+
+    if form.validate_on_submit():
+        data = form.data
+        if Preview.query.filter_by(title=data['title']).count() == 1 and preview.title != data['title']:
+            flash('预告标题已存在，请重新输入', category='err')
+            return redirect(url_for('admin.preview_update', update_id=update_id))
+
+        preview.title = data['title']
+
+        print(data['logo'], type(data['logo']), form.logo.data, type(form.logo.data))
+
+        # 文件保存路径操作
+        file_save_path = app.config['UP_DIR']  # 文件上传保存路径
+        if not os.path.exists(file_save_path):
+            os.makedirs(file_save_path)  # 如果文件保存路径不存在，则创建一个多级目录
+            import stat
+            os.chmod(file_save_path, stat.S_IRWXU)  # 授予可读写权限
+        if form.logo.data:
+            if os.path.exists(os.path.join(file_save_path, preview.logo)):
+                os.remove(os.path.join(file_save_path, preview.logo))  # 删除旧图片
+            file_logo_name = form.logo.data.filename
+            preview.logo = change_filename(file_logo_name)  # 得到新的文件名，保存到输入框
+            form.logo.data.save(file_save_path + preview.logo)
+        db.session.commit()
+        flash('预告信息修改成功！', category='ok')
+        return redirect(url_for('admin.preview_update', update_id=update_id))
+    return render_template('admin/preview_edit.html', form=form, preview=preview)
 
 
-@admin.route("/comment.list/")
-# @admin_login_require
-def comment_list():
-    return render_template('admin/comment_list.html')
+@admin.route("/user/list/<int:page>/")
+@admin_login_require
+def user_list(page=None):
+    if page is None:
+        page = 1
+    page_users = User.query.paginate(page=page, per_page=10)
+    return render_template('admin/user_list.html', page_users=page_users)
 
 
-@admin.route("/collect/list/")
-# @admin_login_require
-def collect_list():
-    return render_template('admin/collect_list.html')
+@admin.route("/user/view/<int:user_id>/")
+@admin_login_require
+def user_view(user_id=None):
+    user = User.query.get_or_404(user_id)
+    return render_template('admin/user_view.html', user=user)
+
+
+@admin.route("/user/delete/<int:delete_id>")
+@admin_login_require
+def user_delete(delete_id=None):
+    user = User.query.get_or_404(delete_id)
+    # 删除同时要从磁盘中删除封面文件
+    file_save_path = app.config['USER_IMAGE']  # 头像上传保存路径
+    # 如果存在将进行删除，不判断，如果文件不存在删除会报错
+    if os.path.exists(os.path.join(file_save_path, user.face)):
+        os.remove(os.path.join(file_save_path, user.face))
+
+    # 删除数据库，提交修改
+    db.session.delete(user)
+    db.session.commit()
+    # 删除后闪现消息
+    flash('删除会员成功！', category='ok')
+    return redirect(url_for('admin.user_list', page=1))
+
+
+@admin.route("/comment/list/<int:page>/")
+@admin_login_require
+def comment_list(page=None):
+    if page is None:
+        page = 1
+    page_comments = Comment.query.join(
+        Movie
+    ).join(
+        User
+    ).filter(
+        Movie.id == Comment.movie_id,
+        User.id == Comment.user_id
+    ).order_by(
+        Comment.add_time.desc()
+    ).paginate(page=page, per_page=10)
+    return render_template('admin/comment_list.html', page_comments=page_comments)
+
+
+@admin.route("/comment/delete/<int:delete_id>")
+@admin_login_require
+def comment_delete(delete_id=None):
+    comment = Comment.query.get_or_404(delete_id)
+    db.session.delete(comment)
+    db.session.commit()
+    flash('删除评论成功！', category='ok')
+    return redirect(url_for('admin.comment_list', page=1))
+
+
+@admin.route("/collect/list/<int:page>/")
+@admin_login_require
+def collect_list(page=None):
+    if page is None:
+        page = 1
+    page_moviecollects = MovieCollect.query.join(
+        Movie
+    ).join(
+        User
+    ).filter(
+        Movie.id == Comment.movie_id,
+        User.id == Comment.user_id
+    ).order_by(
+        Comment.add_time.desc()
+    ).paginate(page=page, per_page=10)
+    return render_template('admin/collect_list.html', page_moviecollects=page_moviecollects)
+
+
+@admin.route("/collect/delete/<int:delete_id>")
+@admin_login_require
+def collect_delete(delete_id=None):
+    moviecollect = MovieCollect.query.get_or_404(delete_id)
+    db.session.delete(moviecollect)
+    db.session.commit()
+    flash('删除收藏成功！', category='ok')
+    return redirect(url_for('admin.collect_list', page=1))
 
 
 @admin.route("/logs/operate_log/")
-# @admin_login_require
+@admin_login_require
 def logs_operate_log():
     return render_template('admin/logs_operate_log.html')
 
 
 @admin.route("/logs/admin_log/")
-# @admin_login_require
+@admin_login_require
 def logs_admin_log():
     return render_template('admin/logs_admin_log.html')
 
 
 @admin.route("/logs/user_log/")
-# @admin_login_require
+@admin_login_require
 def logs_user_log():
     return render_template('admin/logs_user_log.html')
 
 
-@admin.route('/auth/add/')
-# @admin_login_require
+@admin.route('/auth/add/', methods=['GET', 'POST'])
+@admin_login_require
 def auth_add():
-    return render_template('admin/auth_add.html')
+    form = AuthForm()
+    if form.validate_on_submit():
+        data = form.data
+        if Auth.query.filter_by(url=data['url']).count() == 1:
+            flash('权限链接地址已存在！', category='err')
+            return redirect(url_for('admin.auth_add'))
+        auth = Auth(
+            name=data['name'],
+            url=data['url']
+        )
+        db.session.add(auth)
+        db.session.commit()
+        flash('权限地址添加成功！', category='ok')
+    return render_template('admin/auth_edit.html', form=form)
 
 
-@admin.route('/auth/list/')
-# @admin_login_require
-def auth_list():
-    return render_template('admin/auth_list.html')
+@admin.route('/auth/list/<int:page>/')
+@admin_login_require
+def auth_list(page=None):
+    if not page:
+        page = 1
+    page_auths = Auth.query.order_by(Auth.add_time.desc()).paginate(page=page, per_page=10)
+    return render_template('admin/auth_list.html', page_auths=page_auths)
 
 
-@admin.route('/role/add/')
-# @admin_login_require
+@admin.route('/auth/delete/<int:delete_id>/')
+@admin_login_require
+def auth_delete(delete_id=None):
+    auth = Auth.query.get_or_404(delete_id)
+    db.session.delete(auth)
+    db.session.commit()
+    flash('删除权限地址成功', category='ok')
+    return redirect(url_for('admin.auth_list', page=1))
+
+
+@admin.route("/auth/update/<int:update_id>/", methods=['GET', 'POST'])
+@admin_login_require
+def auth_update(update_id=None):
+    auth = Auth.query.get_or_404(update_id)
+    form = AuthForm(
+        name=auth.name,
+        url=auth.url
+    )
+    if form.validate_on_submit():
+        data = form.data
+        if Auth.query.filter_by(url=data['url']).count() == 1 and auth.url != data['url']:
+            flash('权限链接地址已存在！', category='err')
+            return redirect(url_for('admin.auth_update', update_id=update_id))
+        auth.name = data['name']
+        auth.url = data['url']
+        db.session.commit()
+        flash('权限地址修改成功！', category='ok')
+    return render_template('admin/auth_edit.html', form=form)
+
+
+@admin.route('/role/add/', methods=['GET', 'POST'])
+@admin_login_require
 def role_add():
-    return render_template('admin/role_add.html')
+    form = RoleForm()
+    if form.validate_on_submit():
+        data = form.data
+        # 重复添加账户暂未处理！！！
+        # print(data['auths'])  # 权限id列表形式[1, 2]
+        role = Role(
+            name=data['name'],
+            auths=','.join(map(lambda item: str(item), data['auths']))  # 数字转换为字符串形式
+        )
+        db.session.add(role)
+        db.session.commit()
+        flash('角色添加成功', category='ok')
+    return render_template('admin/role_edit.html', form=form)
 
 
-@admin.route('/role/list/')
-# @admin_login_require
-def role_list():
-    return render_template('admin/role_list.html')
+@admin.route('/role/list/<int:page>/')
+@admin_login_require
+def role_list(page=None):
+    if not page:
+        page = 1
+    page_roles = Role.query.order_by(
+        Role.add_time.desc()
+    ).paginate(page=page, per_page=10)
+    return render_template('admin/role_list.html', page_roles=page_roles)
 
 
-@admin.route('/admin/add')
-# @admin_login_require
+@admin.route("/role/delete/<int:delete_id>/")
+@admin_login_require
+def role_delete(delete_id=None):
+    role = Role.query.get_or_404(delete_id)
+    db.session.delete(role)
+    db.session.commit()
+    flash('删除角色成功', category='ok')
+    return redirect(url_for('admin.role_list', page=1))
+
+
+@admin.route("/role/update/<int:update_id>/", methods=['GET', 'POST'])
+@admin_login_require
+def role_update(update_id=None):
+    role = Role.query.get_or_404(update_id)
+    form = RoleForm(
+        name=role.name,
+        auths=list(map(lambda item: int(item), role.auths.split(','))) if role.auths else ''
+    )
+    if form.validate_on_submit():
+        data = form.data
+        role.name = data['name']
+        role.auths = ','.join(map(lambda item: str(item), data['auths']))
+        db.session.commit()
+        flash('角色修改成功！', category='ok')
+    return render_template('admin/role_edit.html', form=form)
+
+
+@admin.route('/admin/add/', methods=['GET', 'POST'])
+@admin_login_require
 def admin_add():
-    return render_template('admin/admin_add.html')
+    form = AdminForm(is_super=1)
+    from werkzeug.security import generate_password_hash
+    print(form.data)
+    if form.validate_on_submit():
+        data = form.data
+        if Admin.query.filter_by(name=data['name']).count() == 1:
+            flash('管理员已存在！', category='err')
+            return redirect(url_for('admin.admin_add'))
+        add_admin = Admin(
+            name=data['name'],
+            pwd=generate_password_hash(data['pwd']),
+            role_id=data['role_id'],
+            is_super=1
+        )
+        db.session.add(add_admin)
+        db.session.commit()
+        flash('管理员添加成功', category='ok')
+    return render_template('admin/admin_edit.html', form=form)
 
 
-@admin.route('/admin/list/')
-# @admin_login_require
-def admin_list():
-    return render_template('admin/admin_list.html')
+@admin.route('/admin/list/<int:page>')
+@admin_login_require
+def admin_list(page=None):
+    if not page:
+        page = 1
+    page_admins = Admin.query.order_by(
+        Admin.add_time.desc()
+    ).join(
+        Role
+    ).filter(
+        Role.id == Admin.role_id  # 关联查询
+    ).paginate(page=page, per_page=10)
+    return render_template('admin/admin_list.html', page_admins=page_admins)

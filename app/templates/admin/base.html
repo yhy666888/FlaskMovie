@@ -52,14 +52,14 @@
                         <a href="#" class="dropdown-toggle" data-toggle="dropdown">
                             <img src="{{ url_for('static', filename='admin/dist/img/user2-160x160.jpg') }}"
                                  class="user-image" alt="User Image">
-                            <span class="hidden-xs">HY</span>
+                            <span class="hidden-xs">{{ session.login_admin }}</span>
                         </a>
                         <ul class="dropdown-menu">
                             <li class="user-header">
                                 <img src="{{ url_for('static', filename='admin/dist/img/user2-160x160.jpg') }}"
                                      class="img-circle" alt="User Image">
                                 <p>
-                                    HY
+                                    {{ session['login_admin'] }}
                                     <small>2020-11-10</small>
                                 </p>
                             </li>
@@ -86,7 +86,7 @@
                          class="img-circle" alt="User Image">
                 </div>
                 <div class="pull-left info">
-                    <p>用户xxx</p>
+                    <p>用户{{ session.login_admin }}</p>
                     <a href="#"><i class="fa fa-circle text-success"></i>在线</a>
                 </div>
             </div>
@@ -181,7 +181,7 @@
                     </a>
                     <ul class="treeview-menu">
                         <li>
-                            <a href="{{ url_for('admin.user_list') }}">
+                            <a href="{{ url_for('admin.user_list', page=1) }}">
                                 <i class="fa fa-circle-o"></i> 会员列表
                             </a>
                         </li>
@@ -195,7 +195,7 @@
                     </a>
                     <ul class="treeview-menu">
                         <li>
-                            <a href="{{ url_for('admin.comment_list') }}">
+                            <a href="{{ url_for('admin.comment_list', page=1) }}">
                                 <i class="fa fa-circle-o"></i> 评论列表
                             </a>
                         </li>
@@ -209,7 +209,7 @@
                     </a>
                     <ul class="treeview-menu">
                         <li>
-                            <a href="{{ url_for('admin.collect_list') }}">
+                            <a href="{{ url_for('admin.collect_list', page=1) }}">
                                 <i class="fa fa-circle-o"></i> 收藏列表
                             </a>
                         </li>
@@ -252,7 +252,7 @@
                             </a>
                         </li>
                         <li>
-                            <a href="{{ url_for('admin.auth_list') }}">
+                            <a href="{{ url_for('admin.auth_list', page=1) }}">
                                 <i class="fa fa-circle-o"></i> 权限列表
                             </a>
                         </li>
@@ -271,7 +271,7 @@
                             </a>
                         </li>
                         <li>
-                            <a href="{{ url_for('admin.role_list') }}">
+                            <a href="{{ url_for('admin.role_list', page=1) }}">
                                 <i class="fa fa-circle-o"></i> 角色列表
                             </a>
                         </li>
@@ -290,7 +290,7 @@
                             </a>
                         </li>
                         <li>
-                            <a href="{{ url_for('admin.admin_list') }}">
+                            <a href="{{ url_for('admin.admin_list', page=1) }}">
                                 <i class="fa fa-circle-o"></i> 管理员列表
                             </a>
                         </li>

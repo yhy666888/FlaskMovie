@@ -46,9 +46,9 @@
                                     </td>
                                     <td>{{ preview.add_time }}</td>
                                     <td>
-                                        <a class="label label-success">编辑</a>
+                                        <a class="label label-success" href="{{ url_for('admin.preview_update', update_id=preview.id) }}">编辑</a>
                                         &nbsp;
-                                        <a class="label label-danger">删除</a>
+                                        <a class="label label-danger" href="{{ url_for('admin.preview_delete', delete_id=preview.id) }}">删除</a>
                                     </td>
                                 </tr>
                             {% endfor %}

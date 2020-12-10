@@ -12,6 +12,8 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = True
 app.config['SECRET_KEY'] = 'dad9c4cbb6a449cc8436b7b78e077341'
 # 定义文件上传保存的路径，在__init__.py文件所在目录创建media文件夹，用于保存上传的文件
 app.config['UP_DIR'] = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static/media/')
+# 定义用户头像保存路径
+app.config['USER_IMAGE'] = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'static/user/')
 
 # 定义db对象，实例化SQLAlchemy，传入app对象
 db = SQLAlchemy(app)
@@ -28,3 +30,9 @@ app.register_blueprint(admin_blueprint, url_prefix="/admin")
 @app.errorhandler(404)
 def page_not_found(error):
     return render_template('404.html'), 404
+
+
+# 添加全局401无权限页面
+@app.errorhandler(401)
+def unauthorized_access(error):
+    return render_template('401.html'), 401
