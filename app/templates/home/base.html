@@ -37,7 +37,7 @@
                     <span class="icon-bar"></span>
                     <span class="icon-bar"></span>
                 </button>
-                <a href="{{ url_for('home.index') }}" class="navbar-brand" style="width:250px;">
+                <a href="{{ url_for('home.index', page=1) }}" class="navbar-brand" style="width:250px;">
                     <img src="{{ url_for('static', filename='base/images/logo.png') }}" style="height:30px;">&nbsp;微电影
                 </a>
             </div>
@@ -46,16 +46,18 @@
             <div class="navbar-collapse collapse">
                 <form class="navbar-form navbar-left" role="search" style="margin-top: 18px;">
                     <div class="form-group input-group">
-                        <input type="text" class="form-control" placeholder="请输入电影名！">
+                        <input type="text" class="form-control" placeholder="请输入电影名！" id="keyword" value="{{ keyword }}"
+                            onkeydown="if(event.keyCode===13)return false"
+                        >
                         <span class="input-group-btn">
-                            <a class="btn btn-default" href="{{ url_for('home.search') }}"><span
+                            <a class="btn btn-default"  id="do_search"><span
                                     class="glyphicon glyphicon-search"></span>&nbsp;搜索</a>
                         </span>
                     </div>
                 </form>
                 <ul class="nav navbar-nav navbar-right">
                     <li>
-                        <a class="curlink" href="{{ url_for('home.index') }}"><span class="glyphicon glyphicon-film"></span>&nbsp;电影</a>
+                        <a class="curlink" href="{{ url_for('home.index', page=1) }}"><span class="glyphicon glyphicon-film"></span>&nbsp;电影</a>
                     </li>
                     <li>
                         <a class="curlink" href="{{ url_for('home.login') }}"><span
@@ -112,10 +114,11 @@
     </script>
     <script>
         $(document).ready(function () {
-            $("img.lazy").lazyload({
-                effect: "fadeIn"
+            $("#do_search").click(function (){
+            let keyword = $('#keyword').val();
+            location.href = "{{ url_for('home.search') }}?keyword=" + keyword;
             });
-        });
+        })
     </script>
     {% block js %}{% endblock %}
 </body>
