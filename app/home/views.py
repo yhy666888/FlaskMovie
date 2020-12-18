@@ -204,22 +204,44 @@ def pwd():
     return render_template('home/pwd.html', form=form)
 
 
-@home.route('/comments/')
+@home.route('/comments/<int:page>')
 @user_login_require
-def comments():
-    return render_template('home/comments.html')
+def comments(page):
+    if not page:
+        page = 1
+    page_comments = Comment.query.filter_by(
+        user_id=int(session['login_user_id'])
+    ).order_by(
+        Comment.add_time.desc()
+    ).paginate(page=page, per_page=10)
+    return render_template('home/comments.html', page_comments=page_comments)
 
 
-@home.route('/userlog/')
+@home.route('/userlog/<int:page>/')
 @user_login_require
-def userlog():
-    return render_template('home/userlog.html')
+def userlog(page=None):
+    """会员登录日志"""
+    if not page:
+        page = 1
+    page_user_logs = UserLog.query.filter_by(
+        user_id=int(session['login_user_id'])
+    ).order_by(
+        UserLog.add_time.desc()
+    ).paginate(page=page, per_page=10)
+    return render_template('home/userlog.html', page_user_logs=page_user_logs)
 
 
-@home.route('/moviecollect/')
+@home.route('/moviecollect/<int:page>/')
 @user_login_require
-def moviecollect():
-    return render_template('home/moviecollect.html')
+def moviecollect(page):
+    if not page:
+        page = 1
+    page_moviecollects = MovieCollect.query.filter_by(
+        user_id=int(session['login_user_id'])
+    ).order_by(
+        MovieCollect.add_time.desc()
+    ).paginate(page=page, per_page=10)
+    return render_template('home/moviecollect.html', page_moviecollects=page_moviecollects)
 
 
 @home.route('/indexbanner/')
